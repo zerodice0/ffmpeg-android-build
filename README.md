@@ -72,6 +72,8 @@ line 34~line 37에서는 `sed`를 사용하여 configure의 내용을 직접 수
 ```
 line 38~line 60에서는 ffmpeg의 옵션을 지정해줍니다. 필요한 옵션을 지정해주면 되는데, 일부 옵션의 경우에는 특정 버전에서 에러가 발생할 수 있으니 주의해주세요. `define`을 사용해서 에러에 대응할 수 있는 경우에는 아래 라인에서 처리합니다.
 
+target-os는 android로 설정해주는 경우 각 라이브러리의 심볼릭 링크가 생성되지 않습니다. 심볼릭 링크가 필요한 경우에는 target-os를 linux로 설정해주세요. 윈도우 환경에서는 심볼릭 링크를 지원하지 않으므로, 하드카피 시 링크에 걸린 파일이 복사되기때문에 용량이 두 배가 될 수 있으니 주의합시다.
+
 ```
 sed  -i "s/#define HAVE_TRUNC 0/#define HAVE_TRUNC 1/" config.h
 sed  -i "s/#define HAVE_TRUNCF 0/#define HAVE_TRUNCF 1/" config.h
@@ -142,3 +144,36 @@ sed	 -i "s/#define HAVE_LOCALTIME_R 0/#define HAVE_LOCALTIME_R 1/" config.h
 
 ## 빌드 결과물 확인
 make를 실행해도 에러가 발생하지 않는다면, make install을 실행해서 빌드 결과물을 한 곳에 모아봅시다. 빌드 결과물은 Prefix로 지정한 경로에 저장되는데, 별도로 Prefix값을 수정하지 않았다면 `ffmpeg 소스코드/android`에 빌드 결과물이 생성될거에요. 이제 생성된 `*.so` 파일을 안드로이드 프로젝트에 넣고, 정상적으로 동작하는지 확인해볼 일만 남았습니다. :)
+
+-----
+
+## + avformat 관련 런타임 에러
+```
+Fatal Exception: java.lang.UnsatisfiedLinkError
+dlopen failed: cannot locate symbol "atexit" referenced by "libavformat.so"...
+```
+빌드는 어찌어찌 끝났지만, 실제로 영상을 디코딩해보니 위와 같은 에러가 발생하면서 크래시가 발생했습니다. FFmpeg 소스코드의 libavformat에서 atexit를 찾아보면, 다음과 같은 atexit 관련 함수명들을 찾을 수 있습니다. avisynth 관련된 모듈인가보네요.
+
+```
+static av_cold void avisynth_atexit_handler(void)
+{
+    AviSynthContext *avs = avs_ctx_list;
+
+    while (avs) {
+        AviSynthContext *next = avs->next;
+        avisynth_context_destroy(avs);
+        avs = next;
+    }
+    FreeLibrary(avs_library.library);
+
+    avs_atexit_called = 1;
+}
+```
+
+`configure --help`에서 avisynth와 관련된 플래그를 찾아보면 아래와 같은 플래그를 찾을 수 있습니다. 기본값은 [no]이고, configure를 실행할 때 --enable-avisynth 플래그를 사용하는 경우 활성화되네요. 만약 이 플래그가 포함되어있다면, 제거해주세요.
+
+```
+--enable-avisynth        enable reading of AviSynth script files [no]
+```
+
+이제 FFmpeg를 사용해서 영상을 디코딩해도, atexit 관련 런타임 에러가 발생하지 않습니다. :)

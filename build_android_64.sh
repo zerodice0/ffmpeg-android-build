@@ -45,7 +45,7 @@ sed  -i "s/SLIB_INSTALL_LINKS='\$(SLIBNAME_WITH_MAJOR) \$(SLIBNAME)'/SLIB_INSTAL
   --ranlib=$RANLIB \
   --strip=$STRIP \
   --arch=$ARCH \
-  --target-os=linux \
+  --target-os=android \
   --enable-cross-compile \
   --disable-asm \
   --enable-shared \
